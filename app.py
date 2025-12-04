@@ -3,7 +3,7 @@ import re
 import csv
 from datetime import datetime
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import pdfplumber
 from PIL import Image
 import pytesseract
@@ -29,6 +29,11 @@ def append_csv(path, row):
         if not file_exists:
             writer.writeheader()
         writer.writerow(row)
+
+
+@app.route("/")
+def serve_index():
+    return send_from_directory(".", "index.html")
 
 
 @app.route("/health", methods=["GET"])
