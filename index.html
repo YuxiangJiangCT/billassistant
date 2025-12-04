@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Transparent Bill Assistant – Prototype</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --card-bg: #ffffff;
+      --border: #d0d7e2;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --accent: #2563eb;
+      --accent-soft: #e0ecff;
+      --success: #059669;
+      --success-bg: #ecfdf5;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --radius-lg: 18px;
+      --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.12);
+      --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 32px 16px 48px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        system-ui, -system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 0% 0%, #dbeafe 0, rgba(219, 234, 254, 0) 55%),
+        radial-gradient(circle at 100% 0%, #fee2e2 0, rgba(254, 226, 226, 0) 60%),
+        var(--bg);
+      color: var(--text-main);
+    }
+
+    .app-shell {
+      max-width: 960px;
+      margin: 0 auto;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.98));
+      border-radius: 28px;
+      box-shadow: var(--shadow-soft);
+      padding: 24px 28px 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Background decorations */
+    .app-shell::before {
+      content: "";
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      background: radial-gradient(circle, rgba(129, 140, 248, 0.16), transparent 60%);
+      top: -80px;
+      right: -40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app-shell::after {
+      content: "";
+      position: absolute;
+      inset: -40px;
+      background-image:
+        radial-gradient(circle at 0 100%, rgba(52, 211, 153, 0.08) 0, transparent 55%),
+        repeating-linear-gradient(
+          135deg,
+          rgba(148, 163, 184, 0.06) 0,
+          rgba(148, 163, 184, 0.06) 1px,
+          transparent 1px,
+          transparent 10px
+        );
+      opacity: 0.55;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+    }
+
+    h1, h2, h3, p {
+      margin: 0;
+    }
+
+    p {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text-main);
+    }
+
+    .muted {
+      color: var(--text-muted);
+    }
+
+    .small {
+      font-size: 12px;
+    }
+
+    .subheading {
+      font-size: 16px;
+      margin-top: 8px;
+      color: #4b5563;
+    }
+
+    /* Header & Navigation */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .page-header-content {
+      flex: 1;
+    }
+
+    .page-header h1 {
+      font-size: 28px;
+      letter-spacing: -0.02em;
+      margin-top: 8px;
+      font-weight: 700;
+    }
+
+    .hero-icon-box {
+      flex-shrink: 0;
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #eff6ff, #dbeafe);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #fff;
+      box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.15);
+      color: var(--accent);
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+
+    .pill-soft {
+      background: rgba(37, 99, 235, 0.08);
+      color: #1d4ed8;
+      border-color: rgba(37, 99, 235, 0.18);
+    }
+
+    .pill-outline {
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--text-muted);
+      border-color: var(--border);
+    }
+
+    /* Cards */
+    .card {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      padding: 24px;
+      box-shadow: var(--shadow-card);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card-illustration {
+      background: radial-gradient(circle at 50% 0, #f8fafc, #ffffff 80%);
+      border-color: #e2e8f0;
+    }
+
+    .grid.two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.2fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .section-title {
+      font-size: 18px;
+      margin-bottom: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title svg {
+      color: var(--accent);
+    }
+
+    /* Lists */
+    .checklist {
+      list-style: none;
+      padding: 0;
+      margin: 14px 0 20px;
+    }
+
+    .checklist li {
+      padding-left: 26px;
+      position: relative;
+      margin-bottom: 8px;
+      font-size: 15px;
+      color: #4b5563;
+    }
+
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      top: 1px;
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--success);
+      background: var(--success-bg);
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .list-tight {
+      list-style: none;
+      margin: 8px 0 0;
+      padding-left: 0;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .list-tight li {
+      margin-bottom: 6px;
+      padding-left: 20px;
+      position: relative;
+    }
+
+    .list-tight li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      top: -2px;
+      font-size: 18px;
+      color: var(--danger);
+    }
+
+
+    /* Buttons */
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    button {
+      font-family: inherit;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 10px 20px;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+      border: 1px solid #1d4ed8;
+    }
+
+    button.primary:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+    }
+
+    button.secondary {
+      background: #ffffff;
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    button.secondary:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
+    }
+
+    button.ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      padding: 6px 0;
+      font-size: 13px;
+      justify-content: flex-start;
+    }
+
+    button.ghost:hover {
+      color: var(--accent);
+    }
+
+    .back-link {
+      margin-bottom: 12px;
+    }
+
+    .footer-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 32px;
+      gap: 12px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(0,0,0,0.05);
+    }
+
+    /* Bill & Data Visualization */
+    .bill-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    .bill-table th,
+    .bill-table td {
+      text-align: left;
+      padding: 8px 6px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .bill-table th {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .bill-summary {
+      margin-top: 16px;
+      font-size: 14px;
+      background: #f8fafc;
+      padding: 12px;
+      border-radius: 12px;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 16px;
+    }
+
+    .tag {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      font-weight: 500;
+    }
+
+    /* Enhanced Bill Preview (Paper look) */
+    .bill-preview {
+      margin-top: 8px;
+      border-radius: 4px;
+      border: 1px solid #e5e7eb;
+      padding: 20px;
+      background: #fff;
+      font-size: 12px;
+      box-shadow:
+        0 1px 2px rgba(0,0,0,0.05),
+        0 8px 16px -4px rgba(0,0,0,0.08);
+      position: relative;
+    }
+
+    /* Paper folded corner effect (subtle) */
+    .bill-preview::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      border-width: 0 16px 16px 0;
+      border-style: solid;
+      border-color: #f1f5f9 #fff;
+      box-shadow: -1px 1px 2px rgba(0,0,0,0.05);
+      display: block;
+      width: 0;
+    }
+
+    .bill-preview-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      align-items: center;
+      border-bottom: 2px solid #f3f4f6;
+      padding-bottom: 10px;
+    }
+
+    .logo-placeholder {
+      font-weight: 800;
+      color: #94a3b8;
+      letter-spacing: -0.05em;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-pill {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      background: #f3f4f6;
+      color: #4b5563;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .bill-line {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .bill-line span:last-child {
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bill-total-line {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid #e5e7eb;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .emphasis {
+      font-weight: 600;
+    }
+
+    /* New Comparison Bar Visual */
+    .comparison-container {
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+
+    .comparison-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .bar-track {
+      height: 28px;
+      background-color: #fee2e2; /* Red background (Overcharge) */
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+    }
+
+    .bar-track::after {
+      content: "Billed: $1,800";
+      position: absolute;
+      right: 10px;
+      color: #991b1b;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background-color: #34d399; /* Green fill (Fair price) */
+      width: 15%; /* Visual approximation of 180/1800 */
+      border-radius: 8px 0 0 8px;
+      position: relative;
+      min-width: 60px;
+    }
+
+    .bar-label-fair {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 11px;
+      font-weight: 700;
+      color: #064e3b;
+      white-space: nowrap;
+    }
+
+    .highlight-box {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: #ecfdf5;
+      border: 1px solid #6ee7b7;
+      font-size: 14px;
+      color: #065f46;
+    }
+
+    /* Checkout Forms */
+    .checkout-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr);
+      gap: 24px;
+      margin-top: 18px;
+      align-items: flex-start;
+    }
+
+    .checkout-form label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: var(--text-main);
+      font-weight: 500;
+      margin-top: 12px;
+    }
+
+    .checkout-form input,
+    .checkout-form select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #d0d7e2;
+      font-size: 14px;
+      background: #f9fafb;
+      transition: border 0.2s;
+    }
+
+    .checkout-form input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: #fff;
+    }
+
+    .checkout-form .split {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .checkout-summary dl {
+      margin: 16px 0 0;
+      font-size: 14px;
+    }
+
+    .checkout-summary div {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      color: var(--text-muted);
+    }
+
+    .checkout-summary div:last-child {
+      border-top: 1px solid #e5e7eb;
+      padding-top: 12px;
+      margin-top: 12px;
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .full-width {
+      width: 100%;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .input-inline {
+      max-width: 320px;
+      margin: 16px auto 0;
+      text-align: left;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 16px 12px 32px;
+      }
+      .app-shell {
+        padding: 20px 16px 24px;
+        border-radius: 20px;
+      }
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .hero-icon-box {
+          display: none; /* Hide illustrative icon on small screens to save space */
+      }
+      .grid.two-col,
+      .checkout-grid {
+        grid-template-columns: 1fr;
+      }
+      .footer-nav {
+        flex-direction: column-reverse;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <main></main>
+  </div>
+
+  <script>
+    let currentView = "landing";
+    let uploadedBillData = null; // 用于存储上传账单的解析数据
+
+    // --- 后端 API 地址（如果端口改了，这里一起改） ---
+    const API_BASE = "http://127.0.0.1:5000";
+
+    // --- Icons (SVG strings) ---
+    const iconArrowRight = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>`;
+    const iconArrowLeft = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>`;
+    const iconCheck = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+    const iconFile = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+    const iconAlert = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+    const iconShield = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`;
+    const iconHero = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`;
+
+    // --- 小工具函数 ---
+
+    function getUserId() {
+      let id = localStorage.getItem("tba_user_id");
+      if (!id) {
+        id = "user_" + Math.random().toString(36).slice(2);
+        localStorage.setItem("tba_user_id", id);
+      }
+      return id;
+    }
+
+    function escapeHtml(str) {
+      if (str == null) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function formatCurrency(amount) {
+        if (typeof amount !== 'number' || isNaN(amount)) return '$0.00';
+        return '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    async function logEvent(eventType, extra = {}) {
+      try {
+        await fetch(API_BASE + "/api/session_event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event_type: eventType,
+            user_id: getUserId(),
+            extra: extra,
+          }),
+        });
+      } catch (e) {
+        console.warn("logEvent failed", e);
+      }
+    }
+
+    async function logWtp(choice, reason = "") {
+      try {
+        await fetch(API_BASE + "/api/wtp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            choice,
+            reason,
+            user_id: getUserId(),
+          }),
+        });
+      } catch (e) {
+        console.warn("logWtp failed", e);
+      }
+    }
+
+    async function loadActionPlanIntoPricing() {
+      try {
+        // 对于上传的账单，我们提供一个通用的行动计划
+        if (currentView === 'upload_pricing' && uploadedBillData) {
+            const planChecklist = [
+                "Verify In-Network status with your insurer.",
+                "Call the provider billing department with the script below.",
+                "Mention the CPT code and the regional fair rate estimate.",
+                "If unsuccessful, send the dispute email template."
+            ];
+            const phoneScript = `Hello, I'm calling about bill [Bill Number] for CPT [CPT Code] on [Date]. I see a billed amount of ${formatCurrency(uploadedBillData.billed_amount || 0)}. My research indicates a fair price for this procedure is around ${formatCurrency(uploadedBillData.should_owe || 0)}. Why is there such a large difference, and how can we adjust this to the fair rate?`;
+            const emailTemplate = `Subject: Dispute on Bill [Bill Number] - Procedure [CPT Code]
+
+Dear [Provider/Insurer Billing],
+
+I am writing regarding the bill for services on [Date of Service] with CPT code [CPT Code], which shows a Billed Amount of ${formatCurrency(uploadedBillData.billed_amount || 0)} and a remaining patient responsibility of ${formatCurrency(uploadedBillData.billed_amount || 0)}.
+
+Based on regional pricing data, a fair rate for this procedure is approximately ${formatCurrency(uploadedBillData.should_owe || 0)}. The current charge is [Overcharge Percentage]% above this rate.
+
+I request an itemized bill review and an adjustment of the charges to the fair rate, or a detailed explanation of the discrepancy.
+
+Sincerely,
+[Your Name]`;
+
+            document.getElementById("plan-phone").textContent = phoneScript;
+            document.getElementById("plan-email").textContent = emailTemplate;
+            document.getElementById("plan-checklist").innerHTML = planChecklist
+                .map((item) => `<li>${escapeHtml(item)}</li>`)
+                .join("");
+
+            return; // 已经加载了上传账单的计划，不需要调用后端
+        }
+
+
+        // 原始 Demo Bill 流程的后端调用
+        const resp = await fetch(API_BASE + "/api/action_plan");
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        const phoneEl = document.getElementById("plan-phone");
+        const emailEl = document.getElementById("plan-email");
+        const checklistEl = document.getElementById("plan-checklist");
+
+        if (phoneEl && data.phone_script) {
+          phoneEl.textContent = data.phone_script;
+        }
+        if (emailEl && data.email_template) {
+          emailEl.textContent = data.email_template;
+        }
+        if (checklistEl && Array.isArray(data.checklist)) {
+          checklistEl.innerHTML = data.checklist
+            .map((item) => `<li>${escapeHtml(item)}</li>`)
+            .join("");
+        }
+      } catch (e) {
+        console.warn("loadActionPlan failed", e);
+      }
+    }
+
+    async function uploadBill() {
+      const input = document.getElementById("bill-file");
+      const uploadArea = document.getElementById("upload-area"); // 拿到整个上传区域的卡片，便于在成功后隐藏
+      const resultCard = document.getElementById("upload-result");
+      if (!input || !resultCard || !uploadArea) return;
+
+      if (!input.files || input.files.length === 0) {
+        alert("Please choose a file first.");
+        return;
+      }
+
+      const file = input.files[0];
+      const formData = new FormData();
+      formData.append("file", file);
+
+      resultCard.innerHTML = `
+        <h2 class="section-title">Analysis</h2>
+        <p class="muted small">Uploading and analyzing ${escapeHtml(file.name)}…</p>
+      `;
+
+      try {
+        await logEvent("upload_started", {
+          filename: file.name,
+          size: file.size,
+        });
+
+        const resp = await fetch(API_BASE + "/api/upload_bill", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(text || "Upload failed");
+        }
+
+        const data = await resp.json();
+
+        // 提取和计算关键数据
+        const billed = Number(data.billed_amount || data.printed_owe || 0);
+        const shouldOwe = Number(data.should_owe || 0);
+        const overcharge = Number(
+          data.estimated_overcharge ||
+            (billed > shouldOwe ? billed - shouldOwe : 0)
+        );
+        const savingsPct = billed > 0 ? (overcharge / billed) * 100 : 0;
+        const issues = data.issues && data.issues.length ? data.issues : [
+             "Potential Price Gouging: Billed amount is significantly higher than estimated fair rate.",
+             "Missing Coverage: Insurance payment is $0.",
+             "Immediate Action Required: Do not pay the full billed amount yet."
+        ]; // 如果后端没有返回 issue，使用一个默认的列表
+
+        // 存储数据供后续页面使用
+        uploadedBillData = {
+            provider: data.provider || "Unknown Provider",
+            service_date: data.service_date || "Unknown Date",
+            procedure: data.procedure || "Unknown Procedure (CPT: N/A)",
+            billed_amount: billed,
+            should_owe: shouldOwe,
+            overcharge: overcharge,
+            issues: issues,
+            cpt_code: data.cpt_code || 'N/A',
+            savings_pct: savingsPct,
+            fileName: file.name
+        };
+
+        // 成功后渲染分析结果
+        // 渲染新的“分析完成”视图
+        render('upload_decoded');
+
+        await logEvent("upload_success", { filename: file.name });
+      } catch (err) {
+        console.error(err);
+        // 渲染失败结果到右侧卡片
+        resultCard.innerHTML = `
+          <h2 class="section-title">Decoded summary</h2>
+          <p class="muted small" style="color:#dc2626;">
+            Something went wrong while analyzing this file. Since this is an early prototype, the parser can be fragile.
+          </p>
+        `;
+        await logEvent("upload_error", { message: String(err) });
+      }
+    }
+
+    // --- WTP 统计（本地 + 打到后端） ---
+
+    function initWtpStats() {
+      if (!localStorage.getItem("wtp_yes")) {
+        localStorage.setItem("wtp_yes", "0");
+      }
+      if (!localStorage.getItem("wtp_no")) {
+        localStorage.setItem("wtp_no", "0");
+      }
+    }
+
+    function updateWtpStats() {
+      const el = document.getElementById("wtp-stats");
+      if (!el) return;
+      const yes = parseInt(localStorage.getItem("wtp_yes") || "0", 10);
+      const no = parseInt(localStorage.getItem("wtp_no") || "0", 10);
+      const total = yes + no;
+      if (total === 0) {
+        el.textContent = "No choices recorded on this device yet.";
+      } else {
+        const rate = ((yes / total) * 100).toFixed(1);
+        el.textContent =
+          "Local Stats: " +
+          yes +
+          " continued, " +
+          no +
+          " exited (" +
+          rate +
+          "% continue rate).";
+      }
+    }
+
+    function setWtp(choice) {
+      const key = choice === "yes" ? "wtp_yes" : "wtp_no";
+      const current = parseInt(localStorage.getItem(key) || "0", 10);
+      localStorage.setItem(key, String(current + 1));
+      updateWtpStats();
+      // 同时打到后端
+      logWtp(choice);
+    }
+
+    function saveEmail() {
+      const input = document.getElementById("update-email");
+      if (!input) return;
+      const email = input.value.trim();
+      if (!email) {
+        alert("Please enter an email address.");
+        return;
+      }
+      localStorage.setItem("tba_update_email", email);
+      alert("Thanks! Saved locally for demo purposes: " + email);
+    }
+
+    // --- 渲染不同页面视图 ---
+
+    function render(view) {
+      currentView = view;
+      const main = document.querySelector("main");
+      if (!main) return;
+
+      // Scroll to top on render
+      window.scrollTo(0, 0);
+
+      // 记录页面切换事件
+      logEvent("view_" + view);
+
+      if (view === "landing") {
+        main.innerHTML = `
+            <header class="page-header">
+              <div class="page-header-content">
+                <div class="pill-row">
+                  <span class="pill pill-soft">Prototype</span>
+                  <span class="pill pill-outline">Safe & Private</span>
+                </div>
+                <h1>Transparent Bill Assistant</h1>
+                <p class="subheading">Stop overpaying. Turn confusing medical bills into clear, actionable next steps.</p>
+              </div>
+              <div class="hero-icon-box">
+                ${iconHero}
+              </div>
+            </header>
+
+            <section class="grid two-col">
+              <div class="card">
+                <h2 class="section-title">See how it works</h2>
+                <p>We'll walk through a realistic (but fake) medical bill to show you how the assistant finds savings.</p>
+                <ul class="checklist">
+                  <li>Decode the confusing codes.</li>
+                  <li>Compare prices to fair rates.</li>
+                  <li>Generate an action plan to fix it.</li>
+                </ul>
+                <div class="button-row">
+                  <button class="primary" onclick="render('sample')">Try the demo ${iconArrowRight}</button>
+                  <button class="secondary" onclick="render('upload')">Upload your bill (demo)</button>
+                </div>
+                <p class="muted small" style="margin-top:16px;">Built for research. No personal data is stored.</p>
+              </div>
+
+              <div class="card card-illustration">
+                <p class="small muted" style="margin-bottom:8px;">Live Preview</p>
+                <div class="bill-preview">
+                  <div class="bill-preview-header">
+                    <div class="logo-placeholder">
+                      <div style="width:12px;height:12px;background:#cbd5e1;border-radius:2px;"></div>
+                      PROVIDER BILL
+                    </div>
+                    <span class="status-pill">SAMPLE</span>
+                  </div>
+                  <div class="bill-line">
+                    <span>MRI brain w/o contrast</span>
+                    <span>$1,800.00</span>
+                  </div>
+                  <div class="bill-line muted">
+                    <span>Insurance paid</span>
+                    <span>$0.00</span>
+                  </div>
+                  <div class="bill-total-line">
+                    <span>Your Responsibility</span>
+                    <span>$1,800.00</span>
+                  </div>
+
+                  <div style="margin-top:16px; padding-top:16px; border-top:1px dashed #e5e7eb;">
+                      <div style="font-size:11px; color:#6b7280; margin-bottom:4px;">Transparent Bill Analysis:</div>
+                      <div style="display:flex; align-items:center; gap:8px; font-weight:600; color:#059669; font-size:13px;">
+                          ${iconCheck} Estimated fair price: ~$180
+                      </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          `;
+      } else if (view === "upload") {
+        main.innerHTML = `
+            <button class="ghost back-link" onclick="render('landing')">${iconArrowLeft} Back</button>
+            <header class="page-header">
+              <div>
+                <h1>Analyze your bill (demo)</h1>
+                <p class="muted">Upload a PDF or image. The backend will run OCR and a rough analysis.</p>
+              </div>
+              <span class="pill pill-outline">Alpha</span>
+            </header>
+
+            <section class="grid two-col">
+              <div class="card" id="upload-area">
+                <h2 class="section-title">${iconFile} Upload bill file</h2>
+                <p class="small muted">Supported formats: PDF, PNG, JPG. Please use test data only.</p>
+                <input type="file" id="bill-file" accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp" />
+                <button class="primary" style="margin-top:16px;" onclick="uploadBill();">
+                  Analyze my bill (demo)
+                </button>
+                <p class="small muted" style="margin-top:8px;">
+                  We do not permanently store your file; it is processed only for this prototype demo.
+                </p>
+              </div>
+
+              <div class="card" id="upload-result">
+                <h2 class="section-title">Analysis</h2>
+                <p class="muted small">Upload a file to see the decoded summary here.</p>
+              </div>
+            </section>
+          `;
+      } else if (view === "upload_decoded" && uploadedBillData) {
+        // --- 上传文件后的分析结果页面 ---
+        const { billed_amount, should_owe, overcharge, issues, provider, service_date, procedure, savings_pct } = uploadedBillData;
+        const billedStr = formatCurrency(billed_amount);
+        const shouldOweStr = formatCurrency(should_owe);
+        const overchargeStr = formatCurrency(overcharge);
+        const barWidth = billed_amount > 0 ? Math.max(8, (should_owe / billed_amount) * 100) : 15;
+        const issuesHtml = issues.map((i) => `<li><strong>${escapeHtml(i)}</strong></li>`).join("");
+
+        main.innerHTML = `
+            <button class="ghost back-link" onclick="render('upload')">${iconArrowLeft} Back to upload</button>
+            <header class="page-header">
+              <div>
+                <h1>Analysis Complete</h1>
+                <p class="muted">We found significant discrepancies in your bill from ${escapeHtml(provider)}.</p>
+              </div>
+              <span class="pill pill-soft">Step 2 of 3</span>
+            </header>
+
+            <section class="grid two-col">
+              <div class="card">
+                <h2 class="section-title">${iconFile} In plain language</h2>
+                <p>The provider billed <span class="emphasis">${billedStr}</span> for procedure on ${escapeHtml(service_date)} (${escapeHtml(procedure)}). However, our data suggests this is vastly overpriced.</p>
+
+                <div class="comparison-container">
+                  <div class="comparison-labels">
+                      <span style="color:#059669;">Fair Estimate</span>
+                      <span style="color:#dc2626;">Billed Amount</span>
+                  </div>
+                  <div class="bar-track" style="content: 'Billed: ${billedStr}';">
+                      <div class="bar-fill" style="width: ${barWidth}%;">
+                          <span class="bar-label-fair">${shouldOweStr}</span>
+                      </div>
+                  </div>
+                  <p class="small muted" style="margin-top:6px; text-align:right;">Potential savings: ~${overchargeStr} (${savings_pct.toFixed(0)}%)</p>
+                </div>
+
+                <div class="highlight-box">
+                  <div style="font-weight:700; margin-bottom:4px;">Conclusion:</div>
+                  You likely owe around <span class="emphasis">${shouldOweStr}</span> (the estimated fair rate), not the full ${billedStr}.
+                </div>
+              </div>
+
+              <div class="card">
+                <h2 class="section-title" style="color:#dc2626;">${iconAlert} Flags detected</h2>
+                <ul class="list-tight">
+                  ${issuesHtml}
+                </ul>
+                <p style="margin-top:16px;">We can generate a specific Action Plan to help you fix this dispute.</p>
+              </div>
+            </section>
+
+            <div class="footer-nav">
+              <button class="secondary" onclick="render('upload')">Back</button>
+              <button class="primary" onclick="render('upload_pricing')">Get Action Plan ${iconArrowRight}</button>
+            </div>
+          `;
+
+      } else if (view === "upload_pricing" && uploadedBillData) {
+        // --- 上传文件后的定价/行动计划页面 ---
+        const { overcharge } = uploadedBillData;
+        const planFee = 20.00; // 虚拟费用
+        const savingsPct = overcharge > 0 ? (planFee / overcharge * 100).toFixed(1) : 0;
+
+        main.innerHTML = `
+            <button class="ghost back-link" onclick="render('upload_decoded')">${iconArrowLeft} Back</button>
+            <header class="page-header">
+              <div>
+                <h1>Get your Action Plan</h1>
+                <p class="muted">Everything you need to resolve this ${formatCurrency(uploadedBillData.billed_amount)} bill.</p>
+              </div>
+              <span class="pill pill-soft">Step 3 of 3</span>
+            </header>
+
+            <section class="grid two-col">
+              <div class="card">
+                <h2 class="section-title">${iconShield} What's included</h2>
+                <ul class="checklist" id="plan-checklist">
+                  <li><strong>Phone Script:</strong> Exact words to say to billing agents.</li>
+                  <li><strong>Email Template:</strong> A ready-to-send message to your insurer or provider.</li>
+                  <li><strong>Checklist:</strong> Step-by-step actions to track progress.</li>
+                </ul>
+
+                <p class="small muted" style="margin-top:12px;">
+                  The example below is loaded live from the backend for this sample bill.
+                </p>
+
+                <details class="small" style="margin-top:4px;">
+                  <summary style="cursor:pointer;">View example script &amp; email</summary>
+                  <div style="margin-top:8px;">
+                    <p class="small"><strong>Phone Script</strong></p>
+                    <pre id="plan-phone"
+                         class="small"
+                         style="white-space:pre-wrap; background:#f9fafb; padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+  Loading...
+                    </pre>
+
+                    <p class="small" style="margin-top:8px;"><strong>Email Template</strong></p>
+                    <pre id="plan-email"
+                         class="small"
+                         style="white-space:pre-wrap; background:#f9fafb; padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+  Loading...
+                    </pre>
+                  </div>
+                </details>
+              </div>
+
+              <div class="card">
+                <h2 class="section-title">One-time fee</h2>
+                <div style="font-size:32px; font-weight:700; color:var(--text-main); margin:12px 0;">${formatCurrency(planFee)}</div>
+                <p class="muted">Less than ${savingsPct}% of the potential savings (estimated ${formatCurrency(overcharge)}).</p>
+                <p class="small muted" style="margin-top:10px;">No subscription. Pay only when you need it.</p>
+              </div>
+            </section>
+
+            <div class="card" style="margin-top:20px; background: linear-gradient(to right, #eff6ff, #fff);">
+              <h2 class="section-title">Ready to continue?</h2>
+              <p>This is a research prototype. Clicking continue will take you to a <strong>simulated</strong> checkout page.</p>
+              <div class="button-row">
+                <button class="primary" onclick="setWtp('yes'); render('checkout');">Proceed to Checkout ${iconArrowRight}</button>
+                <button class="secondary" onclick="setWtp('no'); render('upload_decoded');">No, go back</button>
+              </div>
+              <p id="wtp-stats" class="muted small" style="margin-top:12px;">Local Stats: No choices recorded on this device yet.</p>
+            </div>
+          `;
+        updateWtpStats();
+        loadActionPlanIntoPricing();
+      } else if (view === "sample") {
+        main.innerHTML = `
+            <button class="ghost back-link" onclick="render('landing')">${iconArrowLeft} Back to start</button>
+            <header class="page-header">
+              <div>
+                <h1>Sample medical bill</h1>
+                <p class="muted">Imagine this arrived in your mail.</p>
+              </div>
+              <span class="pill pill-soft">Step 1 of 3</span>
+            </header>
+
+            <section class="grid two-col">
+              <div class="card">
+                <h2 class="section-title">${iconFile} Bill details</h2>
+                <p class="small muted">Patient: Alex Rivera · Service Date: March 3, 2024</p>
+                <table class="bill-table">
+                  <thead>
+                    <tr>
+                      <th>Service / CPT</th>
+                      <th>Billed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                          <div style="font-weight:500;">MRI brain w/o contrast</div>
+                          <div class="small muted">Code: 70551</div>
+                      </td>
+                      <td style="vertical-align:top; font-weight:500;">$1,800</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="bill-summary">
+                  <div class="bill-line">
+                      <span class="muted">Insurance Coverage</span>
+                      <span>$0.00</span>
+                  </div>
+                  <div class="bill-line" style="margin-top:8px; font-size:16px; font-weight:700;">
+                      <span>You Owe</span>
+                      <span style="color:#dc2626;">$1,800.00</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h2 class="section-title">The Problem</h2>
+                <p>You received a huge bill for a standard scan. Why did insurance pay $0? Is $1,800 a fair price?</p>
+                <p style="margin-top:10px;">Usually, you would have to call the hospital and sit on hold. Instead, let's see what the Assistant finds.</p>
+                <div class="tag-row">
+                  <span class="tag">High Priority</span>
+                  <span class="tag">Potential Error</span>
+                </div>
+              </div>
+            </section>
+
+            <div class="footer-nav">
+              <button class="secondary" onclick="render('landing')">Back</button>
+              <button class="primary" onclick="render('decoded')">Analyze this bill ${iconArrowRight}</button>
+            </div>
+          `;
+      } else if (view === "decoded") {
+        main.innerHTML = `
+            <button class="ghost back-link" onclick="render('sample')">${iconArrowLeft} Back to bill</button>
+            <header class="page-header">
+              <div>
+                <h1>Analysis Complete</h1>
+                <p class="muted">We found significant discrepancies.</p>
+              </div>
+              <span class="pill pill-soft">Step 2 of 3</span>
+            </header>
+
+            <section class="grid two-col">
+              <div class="card">
+                <h2 class="section-title">${iconFile} In plain language</h2>
+                <p>The provider billed <span class="emphasis">$1,800</span> for code 70551 (Brain MRI). However, based on your plan's typical rates, this is vastly overpriced.</p>
+
+                <div class="comparison-container">
+                  <div class="comparison-labels">
+                      <span style="color:#059669;">Fair Estimate</span>
+                      <span style="color:#dc2626;">Billed Amount</span>
+                  </div>
+                  <div class="bar-track">
+                      <div class="bar-fill">
+                          <span class="bar-label-fair">$180</span>
+                      </div>
+                  </div>
+                  <p class="small muted" style="margin-top:6px; text-align:right;">Potential savings: ~$1,620</p>
+                </div>
+
+                <div class="highlight-box">
+                  <div style="font-weight:700; margin-bottom:4px;">Conclusion:</div>
+                  You likely owe around <span class="emphasis">$180</span> (your 20% coinsurance), not $1,800.
+                </div>
+              </div>
+
+              <div class="card">
+                <h2 class="section-title" style="color:#dc2626;">${iconAlert} Flags detected</h2>
+                <ul class="list-tight">
+                  <li><strong>Price Gouging:</strong> Billed amount is 2x the regional average.</li>
+                  <li><strong>Missing Coverage:</strong> Insurance paid $0 despite provider being In-Network.</li>
+                  <li><strong>Action Required:</strong> This bill requires a dispute. Do not pay yet.</li>
+                </ul>
+                <p style="margin-top:16px;">We can generate a specific Action Plan to help you fix this.</p>
+              </div>
+            </section>
+
+            <div class="footer-nav">
+              <button class="secondary" onclick="render('sample')">Back</button>
+              <button class="primary" onclick="render('pricing')">Get Action Plan ${iconArrowRight}</button>
+            </div>
+          `;
+      } else if (view === "pricing") {
+        main.innerHTML = `
+            <button class="ghost back-link" onclick="render('decoded')">${iconArrowLeft} Back</button>
+            <header class="page-header">
+              <div>
+                <h1>Get your Action Plan</h1>
+                <p class="muted">Everything you need to resolve this $1,800 bill.</p>
+              </div>
+              <span class="pill pill-soft">Step 3 of 3</span>
+            </header>
+
+            <section class="grid two-col">
+              <div class="card">
+                <h2 class="section-title">${iconShield} What's included</h2>
+                <ul class="checklist" id="plan-checklist">
+                  <li><strong>Phone Script:</strong> Exact words to say to billing agents.</li>
+                  <li><strong>Email Template:</strong> A ready-to-send message to your insurer or provider.</li>
+                  <li><strong>Checklist:</strong> Step-by-step actions to track progress.</li>
+                </ul>
+
+                <p class="small muted" style="margin-top:12px;">
+                  The example below is loaded live from the backend for this sample bill.
+                </p>
+
+                <details class="small" style="margin-top:4px;">
+                  <summary style="cursor:pointer;">View example script &amp; email</summary>
+                  <div style="margin-top:8px;">
+                    <p class="small"><strong>Phone Script</strong></p>
+                    <pre id="plan-phone"
+                         class="small"
+                         style="white-space:pre-wrap; background:#f9fafb; padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+  Loading...
+                    </pre>
+
+                    <p class="small" style="margin-top:8px;"><strong>Email Template</strong></p>
+                    <pre id="plan-email"
+                         class="small"
+                         style="white-space:pre-wrap; background:#f9fafb; padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
+  Loading...
+                    </pre>
+                  </div>
+                </details>
+              </div>
+
+              <div class="card">
+                <h2 class="section-title">One-time fee</h2>
+                <div style="font-size:32px; font-weight:700; color:var(--text-main); margin:12px 0;">$20</div>
+                <p class="muted">Less than 2% of the potential savings.</p>
+                <p class="small muted" style="margin-top:10px;">No subscription. Pay only when you need it.</p>
+              </div>
+            </section>
+
+            <div class="card" style="margin-top:20px; background: linear-gradient(to right, #eff6ff, #fff);">
+              <h2 class="section-title">Ready to continue?</h2>
+              <p>This is a research prototype. Clicking continue will take you to a <strong>simulated</strong> checkout page.</p>
+              <div class="button-row">
+                <button class="primary" onclick="setWtp('yes'); render('checkout');">Proceed to Checkout ${iconArrowRight}</button>
+                <button class="secondary" onclick="setWtp('no'); render('decoded');">No, go back</button>
+              </div>
+              <p id="wtp-stats" class="muted small" style="margin-top:12px;"></p>
+            </div>
+          `;
+        updateWtpStats();
+        loadActionPlanIntoPricing();
+      } else if (view === "checkout") {
+        main.innerHTML = `
+            <button class="ghost back-link" onclick="render('pricing')">${iconArrowLeft} Back</button>
+            <header class="page-header">
+              <div>
+                <h1>Secure checkout</h1>
+                <p class="muted">Simulated payment gateway.</p>
+              </div>
+              <span class="pill pill-outline">Test Mode</span>
+            </header>
+
+            <section class="checkout-grid">
+              <div class="card checkout-form">
+                <h2 class="section-title">Payment details</h2>
+                <p class="small muted" style="margin-bottom:12px;">Do not enter real info. Fields are disabled.</p>
+                <label>Cardholder name</label>
+                <input type="text" placeholder="Jane Doe" disabled>
+
+                <label>Card number</label>
+                <input type="text" placeholder="•••• •••• •••• 4242" disabled>
+
+                <div class="split">
+                  <div>
+                      <label>Expiry</label>
+                      <input type="text" placeholder="12 / 29" disabled>
+                  </div>
+                  <div>
+                      <label>CVC</label>
+                      <input type="text" placeholder="123" disabled>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card checkout-summary">
+                <h2 class="section-title">Order Summary</h2>
+                <p>Medical Bill Action Plan</p>
+                <dl>
+                  <div><dt>Subtotal</dt><dd>$20.00</dd></div>
+                  <div><dt>Taxes</dt><dd>$0.00</dd></div>
+                  <div><dt>Total</dt><dd>$20.00</dd></div>
+                </dl>
+                <button class="primary full-width" onclick="render('confirmation');">Pay $20.00 (Demo)</button>
+                <div style="text-align:center; margin-top:12px;">
+                   <span style="font-size:11px; color:var(--text-muted);">🔒 256-bit SSL Secure</span>
+                </div>
+              </div>
+            </section>
+          `;
+      } else if (view === "confirmation") {
+        main.innerHTML = `
+            <header class="page-header center" style="flex-direction:column; align-items:center; text-align:center;">
+               <div style="width:64px; height:64px; background:#ecfdf5; color:#059669; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:16px;">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+               </div>
+               <h1>Demo Complete</h1>
+               <p class="muted">Thank you for testing the Transparent Bill Assistant prototype.</p>
+            </header>
+
+            <div class="card center" style="max-width:500px; margin:0 auto;">
+              <p>We are building this to help real patients save money. If you'd like to know when we launch, drop your email below.</p>
+
+              <div class="input-inline">
+                <input id="update-email" type="email" placeholder="name@example.com">
+                <button class="primary full-width" style="margin-top:10px;" onclick="saveEmail();">Keep me updated</button>
+              </div>
+
+              <button class="ghost" style="margin-top:24px;" onclick="render('landing');">Start Over</button>
+            </div>
+          `;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      initWtpStats();
+      render("landing");
+    });
+  </script>
+
+</body>
+</html>
