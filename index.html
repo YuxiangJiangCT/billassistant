@@ -644,6 +644,13 @@
     let currentView = "landing";
     let uploadedBillData = null; // Store parsed bill data for later use
 
+    // --- User insurance info for more accurate calculations ---
+    let userInsuranceInfo = {
+      planType: 'unknown',      // 'hmo', 'ppo', 'hdhp', 'unknown'
+      deductibleMet: 'unknown', // 'yes', 'no', 'unknown'
+      coinsurance: 'unknown'    // '10', '20', '30', '40', 'unknown'
+    };
+
     // --- Backend API base URL (empty for relative paths in production) ---
     const API_BASE = "";
 
@@ -703,6 +710,55 @@
     function formatCurrency(amount) {
         if (typeof amount !== 'number' || isNaN(amount)) return '$0.00';
         return '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    // --- Insurance calculation functions ---
+    function recalculateWithInsurance() {
+      if (!uploadedBillData) return;
+
+      const billed = uploadedBillData.billed_amount;
+
+      // Plan type affects allowed_amount estimate
+      const allowedRates = { hmo: 0.50, ppo: 0.65, hdhp: 0.75, unknown: 0.65 };
+      const coinsuranceRates = { '10': 0.10, '20': 0.20, '30': 0.30, '40': 0.40, unknown: 0.20 };
+
+      const allowedRate = allowedRates[userInsuranceInfo.planType] || 0.65;
+      const coinsurance = coinsuranceRates[userInsuranceInfo.coinsurance] || 0.20;
+
+      let estimated_allowed = billed * allowedRate;
+      let should_owe;
+
+      if (userInsuranceInfo.deductibleMet === 'yes') {
+        // Deductible met - only pay coinsurance
+        should_owe = estimated_allowed * coinsurance;
+      } else if (userInsuranceInfo.deductibleMet === 'no') {
+        // Deductible not met - may need to pay more
+        should_owe = estimated_allowed * Math.min(1, coinsurance + 0.30);
+      } else {
+        // Unknown - use standard estimate
+        should_owe = estimated_allowed * coinsurance;
+      }
+
+      // Update stored data
+      uploadedBillData.should_owe = Math.round(should_owe * 100) / 100;
+      uploadedBillData.overcharge = Math.max(0, uploadedBillData.billed_amount - should_owe);
+      uploadedBillData.savings_pct = billed > 0 ? (uploadedBillData.overcharge / billed) * 100 : 0;
+
+      // Log insurance info for analytics
+      logEvent("insurance_info_submitted", {
+        planType: userInsuranceInfo.planType,
+        deductibleMet: userInsuranceInfo.deductibleMet,
+        coinsurance: userInsuranceInfo.coinsurance
+      });
+    }
+
+    function getInsuranceLabel(type, value) {
+      const labels = {
+        planType: { hmo: 'HMO', ppo: 'PPO', hdhp: 'HDHP', unknown: 'Unknown plan' },
+        deductibleMet: { yes: 'met', no: 'not met', unknown: 'unknown' },
+        coinsurance: { '10': '10%', '20': '20%', '30': '30%', '40': '40%', unknown: '20% (estimated)' }
+      };
+      return labels[type]?.[value] || value;
     }
 
     async function logEvent(eventType, extra = {}) {
@@ -891,8 +947,11 @@ Sincerely,
             fileName: file.name
         };
 
-        // Render analysis results view
-        render('upload_decoded');
+        // Reset insurance info for new upload
+        userInsuranceInfo = { planType: 'unknown', deductibleMet: 'unknown', coinsurance: 'unknown' };
+
+        // Go to insurance info collection page
+        render('insurance_info');
 
         await logEvent("upload_success", { filename: file.name });
       } catch (err) {
@@ -1069,6 +1128,73 @@ Sincerely,
               </div>
             </section>
           `;
+      } else if (view === "insurance_info" && uploadedBillData) {
+        // --- Insurance info collection page ---
+        main.innerHTML = `
+            <button class="ghost back-link" onclick="render('upload')">${iconArrowLeft} Back</button>
+            <header class="page-header">
+              <div>
+                <h1>Tell us about your insurance</h1>
+                <p class="muted">This helps us estimate what you should actually owe. All fields are optional.</p>
+              </div>
+              <span class="pill pill-soft">Optional</span>
+            </header>
+
+            <div class="card">
+              <h2 class="section-title">${iconShield} Plan Type</h2>
+              <p class="small muted" style="margin-bottom:12px;">What type of health insurance do you have?</p>
+              <div style="display:flex; flex-direction:column; gap:12px; margin:16px 0;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="radio" name="planType" value="hmo" onchange="userInsuranceInfo.planType='hmo'" style="width:18px; height:18px;">
+                  <span><strong>HMO</strong> - Lower costs, requires referrals, limited network</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="radio" name="planType" value="ppo" onchange="userInsuranceInfo.planType='ppo'" style="width:18px; height:18px;">
+                  <span><strong>PPO</strong> - More flexibility, higher premiums, larger network</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="radio" name="planType" value="hdhp" onchange="userInsuranceInfo.planType='hdhp'" style="width:18px; height:18px;">
+                  <span><strong>HDHP</strong> - High deductible, lower premiums, often with HSA</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="radio" name="planType" value="unknown" onchange="userInsuranceInfo.planType='unknown'" style="width:18px; height:18px;" checked>
+                  <span><strong>Not sure</strong> - We'll use average estimates</span>
+                </label>
+              </div>
+
+              <h2 class="section-title" style="margin-top:28px;">Deductible Status</h2>
+              <p class="small muted" style="margin-bottom:12px;">Have you met your annual deductible this year?</p>
+              <div style="display:flex; flex-direction:column; gap:12px; margin:16px 0;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="radio" name="deductible" value="yes" onchange="userInsuranceInfo.deductibleMet='yes'" style="width:18px; height:18px;">
+                  <span><strong>Yes</strong> - I've met my deductible</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="radio" name="deductible" value="no" onchange="userInsuranceInfo.deductibleMet='no'" style="width:18px; height:18px;">
+                  <span><strong>No</strong> - I haven't met it yet</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="radio" name="deductible" value="unknown" onchange="userInsuranceInfo.deductibleMet='unknown'" style="width:18px; height:18px;" checked>
+                  <span><strong>Not sure</strong></span>
+                </label>
+              </div>
+
+              <h2 class="section-title" style="margin-top:28px;">Coinsurance Rate</h2>
+              <p class="small muted" style="margin-bottom:12px;">After meeting your deductible, what percentage do you pay? (Check your plan documents)</p>
+              <select id="coinsurance-select" style="padding:12px 16px; border-radius:10px; border:1px solid #d0d7e2; font-size:15px; width:100%; max-width:300px; background:#f9fafb;" onchange="userInsuranceInfo.coinsurance=this.value">
+                <option value="unknown" selected>Not sure (we'll estimate 20%)</option>
+                <option value="10">10% - I pay 10%, insurance pays 90%</option>
+                <option value="20">20% - I pay 20%, insurance pays 80%</option>
+                <option value="30">30% - I pay 30%, insurance pays 70%</option>
+                <option value="40">40% - I pay 40%, insurance pays 60%</option>
+              </select>
+            </div>
+
+            <div class="footer-nav">
+              <button class="secondary" onclick="render('upload_decoded')">Skip, use defaults</button>
+              <button class="primary" onclick="recalculateWithInsurance(); render('upload_decoded');">Continue with my info ${iconArrowRight}</button>
+            </div>
+          `;
       } else if (view === "upload_decoded" && uploadedBillData) {
         // --- 上传文件后的分析结果页面 ---
         const { billed_amount, should_owe, overcharge, issues, provider, service_date, procedure, savings_pct } = uploadedBillData;
@@ -1109,6 +1235,11 @@ Sincerely,
                 <div class="highlight-box">
                   <div style="font-weight:700; margin-bottom:4px;">Conclusion:</div>
                   You likely owe around <span class="emphasis">${shouldOweStr}</span> (the estimated fair rate), not the full ${billedStr}.
+                  <p class="small muted" style="margin-top:8px; margin-bottom:0;">
+                    Based on: ${getInsuranceLabel('planType', userInsuranceInfo.planType)} plan,
+                    deductible ${getInsuranceLabel('deductibleMet', userInsuranceInfo.deductibleMet)},
+                    ${getInsuranceLabel('coinsurance', userInsuranceInfo.coinsurance)} coinsurance
+                  </p>
                 </div>
               </div>
 
