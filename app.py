@@ -233,15 +233,42 @@ def parse_bill_text(text: str) -> dict:
         procedure = "Unknown procedure"
 
     # -------- 金额匹配：允许逗号，统一成 float --------
-    # 必须有小数点（避免匹配 PO BOX、账户号等纯整数）
-    amount_pattern = r"\$?\s*([0-9]+(?:,[0-9]{3})*\.[0-9]{2})"
+    # Pattern 1: with dollar sign (most reliable) - e.g., $7,353.60
+    dollar_amount_pattern = r"\$\s*([0-9]+(?:,[0-9]{3})*\.[0-9]{2})"
+    # Pattern 2: without dollar sign but with decimal point - e.g., 7,353.60
+    plain_amount_pattern = r"([0-9]+(?:,[0-9]{3})*\.[0-9]{2})"
+    # Pattern 3: European/OCR format with comma as decimal - e.g., 7,353,60
+    comma_decimal_pattern = r"([0-9]+(?:,[0-9]{3})*),([0-9]{2})\b"
 
-    def extract_amounts(line: str):
-        ms = re.findall(amount_pattern, line)
-        vals = [float(m.replace(",", "")) for m in ms]
-        # 过滤掉不合理的金额，医疗账单通常不超过 100 万
-        vals = [v for v in vals if 0 < v < 1000000]
-        return vals
+    def extract_amounts(line: str, prefer_dollar=False):
+        """Extract amounts from a line. If prefer_dollar=True, only return $ amounts (empty list if none found)."""
+        # First try to find amounts with $ sign
+        dollar_matches = re.findall(dollar_amount_pattern, line)
+        dollar_vals = [float(m.replace(",", "")) for m in dollar_matches]
+        dollar_vals = [v for v in dollar_vals if 0 < v < 1000000]
+
+        # If prefer_dollar mode, return only dollar amounts (may be empty)
+        if prefer_dollar:
+            return dollar_vals
+
+        # Also find plain amounts
+        plain_matches = re.findall(plain_amount_pattern, line)
+        plain_vals = [float(m.replace(",", "")) for m in plain_matches]
+        plain_vals = [v for v in plain_vals if 0 < v < 1000000]
+
+        # Try comma-as-decimal format (e.g., "7,353,60" -> 7353.60)
+        comma_matches = re.findall(comma_decimal_pattern, line)
+        for whole, decimal in comma_matches:
+            try:
+                val = float(whole.replace(",", "") + "." + decimal)
+                if 0 < val < 1000000 and val not in plain_vals:
+                    plain_vals.append(val)
+            except ValueError:
+                pass
+
+        # Combine, preferring dollar amounts
+        all_vals = dollar_vals + [v for v in plain_vals if v not in dollar_vals]
+        return all_vals
 
     all_amounts = []
     for line in lines:
@@ -255,6 +282,9 @@ def parse_bill_text(text: str) -> dict:
     insurer_paid = 0.0
 
     # -------- 先找 total / amount due / allowed / plan paid 等聚合行 --------
+    # For patient owe, prefer dollar-sign amounts (more reliable with OCR)
+    printed_owe_candidates = []
+
     for line in lines:
         lower = line.lower()
         vals = extract_amounts(line)
@@ -267,11 +297,21 @@ def parse_bill_text(text: str) -> dict:
             if cand > billed_amount:
                 billed_amount = cand
 
-        # patient responsibility / amount due / you owe
-        if any(k in lower for k in ["amount due", "you owe", "amount you owe", "patient responsibility"]):
-            cand = max(vals)
-            if cand > printed_owe:
-                printed_owe = cand
+        # patient responsibility / amount due / you owe / pay now / please pay
+        pay_keywords = ["amount due", "you owe", "amount you owe", "patient responsibility",
+                        "balance due", "pay this amount", "amount owed", "total due", "your balance"]
+        # Special handling for "pay X now" pattern
+        pay_now_keywords = ["pay now", "pay $"]
+
+        if any(k in lower for k in pay_keywords + pay_now_keywords):
+            # Prefer dollar amounts for payment lines (more reliable)
+            dollar_vals = extract_amounts(line, prefer_dollar=True)
+            if dollar_vals:
+                # Dollar amount found - use it
+                printed_owe_candidates.append(('dollar', max(dollar_vals), line))
+            elif vals:
+                # No dollar amount, use plain amount
+                printed_owe_candidates.append(('plain', max(vals), line))
 
         # allowed
         if any(k in lower for k in ["allowed amount", "plan allowed", "eligible amount"]):
@@ -284,6 +324,16 @@ def parse_bill_text(text: str) -> dict:
             cand = max(vals)
             if cand > insurer_paid:
                 insurer_paid = cand
+
+    # Select best printed_owe: prefer dollar amounts over plain amounts
+    dollar_candidates = [(amt, line) for (typ, amt, line) in printed_owe_candidates if typ == 'dollar']
+    plain_candidates = [(amt, line) for (typ, amt, line) in printed_owe_candidates if typ == 'plain']
+
+    if dollar_candidates:
+        # Use the dollar amount - if multiple, use the one from most specific context
+        printed_owe = max([amt for (amt, _) in dollar_candidates])
+    elif plain_candidates:
+        printed_owe = max([amt for (amt, _) in plain_candidates])
 
     # -------- 再看“明细行”：行里同时有日期 + 代码 + 多个金额 --------
     detail_lines = []
@@ -322,12 +372,26 @@ def parse_bill_text(text: str) -> dict:
                     printed_owe = vals[-1]
 
     # -------- 没抓到就回退到全局逻辑 --------
-    if all_amounts_clean:
+    # Filter out amounts that appear near account/reference numbers
+    # Account numbers often have amounts that look like prices
+    reasonable_amounts = [a for a in all_amounts_clean if a < 50000]  # Most medical bills < $50k
+
+    if reasonable_amounts:
         if billed_amount == 0.0:
-            billed_amount = max(all_amounts_clean)
+            # If we already found printed_owe, use a reasonable multiple of it
+            if printed_owe > 0:
+                # billed is typically higher than patient owes, but not by crazy amounts
+                candidates = [a for a in reasonable_amounts if a >= printed_owe and a <= printed_owe * 5]
+                if candidates:
+                    billed_amount = min(candidates)  # Take the smallest reasonable candidate
+                else:
+                    billed_amount = printed_owe  # Fallback to printed_owe
+            else:
+                billed_amount = max(reasonable_amounts)
+
         if printed_owe == 0.0:
-            if len(all_amounts_clean) >= 2:
-                printed_owe = sorted(all_amounts_clean, reverse=True)[1]
+            if len(reasonable_amounts) >= 2:
+                printed_owe = sorted(reasonable_amounts, reverse=True)[1]
             else:
                 printed_owe = billed_amount
 
@@ -342,8 +406,19 @@ def parse_bill_text(text: str) -> dict:
         printed_owe = billed_amount
 
     # -------- 计算 should_owe 和 overcharge --------
+    # For statements/bills where we only see "amount due", the overcharge estimate
+    # is based on comparing to typical allowed amounts
     coinsurance_rate = 0.2
-    should_owe = round(allowed_amount * coinsurance_rate, 2) if allowed_amount > 0 else 0.0
+    if allowed_amount > 0 and billed_amount > allowed_amount:
+        # We have both billed and allowed - can calculate proper should_owe
+        should_owe = round(allowed_amount * coinsurance_rate, 2)
+    elif billed_amount > 0:
+        # We only have billed amount - estimate allowed as 65% of billed
+        estimated_allowed = billed_amount * 0.65
+        should_owe = round(estimated_allowed * coinsurance_rate, 2)
+    else:
+        should_owe = 0.0
+
     estimated_overcharge = max(0.0, printed_owe - should_owe)
 
     issues = []
