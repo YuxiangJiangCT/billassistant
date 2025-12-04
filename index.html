@@ -718,30 +718,31 @@
 
       const billed = uploadedBillData.billed_amount;
 
-      // Plan type affects allowed_amount estimate
-      const allowedRates = { hmo: 0.50, ppo: 0.65, hdhp: 0.75, unknown: 0.65 };
+      // Coinsurance rates from user input
       const coinsuranceRates = { '10': 0.10, '20': 0.20, '30': 0.30, '40': 0.40, unknown: 0.20 };
 
-      const allowedRate = allowedRates[userInsuranceInfo.planType] || 0.65;
-      const coinsurance = coinsuranceRates[userInsuranceInfo.coinsurance] || 0.20;
+      // Allowed amount is typically 50-70% of billed (insurance-negotiated rate)
+      // This is determined by provider contracts, NOT by plan type (HMO/PPO/HDHP)
+      const ALLOWED_RATE = 0.65;
 
-      let estimated_allowed = billed * allowedRate;
+      const coinsurance = coinsuranceRates[userInsuranceInfo.coinsurance] || 0.20;
+      let estimated_allowed = billed * ALLOWED_RATE;
       let should_owe;
 
       if (userInsuranceInfo.deductibleMet === 'yes') {
-        // Deductible met - only pay coinsurance
+        // Deductible met - only pay coinsurance portion of allowed amount
         should_owe = estimated_allowed * coinsurance;
       } else if (userInsuranceInfo.deductibleMet === 'no') {
-        // Deductible not met - may need to pay more
-        should_owe = estimated_allowed * Math.min(1, coinsurance + 0.30);
+        // Deductible NOT met - you pay 100% of allowed amount (towards deductible)
+        should_owe = estimated_allowed;
       } else {
-        // Unknown - use standard estimate
+        // Unknown - assume deductible is met (common case), use coinsurance
         should_owe = estimated_allowed * coinsurance;
       }
 
       // Update stored data
       uploadedBillData.should_owe = Math.round(should_owe * 100) / 100;
-      uploadedBillData.overcharge = Math.max(0, uploadedBillData.billed_amount - should_owe);
+      uploadedBillData.overcharge = Math.max(0, billed - should_owe);
       uploadedBillData.savings_pct = billed > 0 ? (uploadedBillData.overcharge / billed) * 100 : 0;
 
       // Log insurance info for analytics
