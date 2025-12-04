@@ -642,10 +642,33 @@
 
   <script>
     let currentView = "landing";
-    let uploadedBillData = null; // 用于存储上传账单的解析数据
+    let uploadedBillData = null; // Store parsed bill data for later use
 
-    // --- 后端 API 地址（部署后使用相对路径） ---
+    // --- Backend API base URL (empty for relative paths in production) ---
     const API_BASE = "";
+
+    // --- Copy to clipboard utility ---
+    function copyToClipboard(elementId, buttonId) {
+      const el = document.getElementById(elementId);
+      const btn = document.getElementById(buttonId);
+      if (!el) return;
+
+      const text = el.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        if (btn) {
+          const originalText = btn.textContent;
+          btn.textContent = "Copied!";
+          btn.style.background = "#059669";
+          setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.background = "";
+          }, 2000);
+        }
+      }).catch(err => {
+        console.error('Copy failed:', err);
+        alert('Copy failed. Please select and copy manually.');
+      });
+    }
 
     // --- Icons (SVG strings) ---
     const iconArrowRight = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>`;
@@ -656,7 +679,7 @@
     const iconShield = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>`;
     const iconHero = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`;
 
-    // --- 小工具函数 ---
+    // --- Utility functions ---
 
     function getUserId() {
       let id = localStorage.getItem("tba_user_id");
@@ -716,27 +739,56 @@
 
     async function loadActionPlanIntoPricing() {
       try {
-        // 对于上传的账单，我们提供一个通用的行动计划
+        // For uploaded bills, generate a customized action plan
         if (currentView === 'upload_pricing' && uploadedBillData) {
             const planChecklist = [
-                "Verify In-Network status with your insurer.",
-                "Call the provider billing department with the script below.",
-                "Mention the CPT code and the regional fair rate estimate.",
-                "If unsuccessful, send the dispute email template."
+                "Request an itemized bill from the provider (required by law).",
+                "Verify the provider is In-Network with your insurance.",
+                "Call billing department using the phone script below.",
+                "If they refuse, escalate by sending the formal dispute email.",
+                "Document everything: date, time, name of representative, reference numbers."
             ];
-            const phoneScript = `Hello, I'm calling about bill [Bill Number] for CPT [CPT Code] on [Date]. I see a billed amount of ${formatCurrency(uploadedBillData.billed_amount || 0)}. My research indicates a fair price for this procedure is around ${formatCurrency(uploadedBillData.should_owe || 0)}. Why is there such a large difference, and how can we adjust this to the fair rate?`;
-            const emailTemplate = `Subject: Dispute on Bill [Bill Number] - Procedure [CPT Code]
+            const phoneScript = `Hello, my name is [Your Name] and I'm calling about account number [Account #] for services on ${uploadedBillData.service_date || '[Date]'}.
 
-Dear [Provider/Insurer Billing],
+I received a bill for ${formatCurrency(uploadedBillData.billed_amount || 0)}, but based on fair market rates in my area, this appears to be significantly overpriced. The typical cost for this procedure is around ${formatCurrency(uploadedBillData.should_owe || 0)}.
 
-I am writing regarding the bill for services on [Date of Service] with CPT code [CPT Code], which shows a Billed Amount of ${formatCurrency(uploadedBillData.billed_amount || 0)} and a remaining patient responsibility of ${formatCurrency(uploadedBillData.billed_amount || 0)}.
+I'm requesting:
+1. An itemized bill showing all charges
+2. An explanation of why this charge is so much higher than the fair market rate
+3. A review of my bill for any billing errors or duplicate charges
 
-Based on regional pricing data, a fair rate for this procedure is approximately ${formatCurrency(uploadedBillData.should_owe || 0)}. The current charge is [Overcharge Percentage]% above this rate.
+If an adjustment cannot be made, I will be filing a formal dispute in writing and may involve my state's insurance commissioner.
 
-I request an itemized bill review and an adjustment of the charges to the fair rate, or a detailed explanation of the discrepancy.
+Can you please provide me with a reference number for this call?`;
+
+            const emailTemplate = `Subject: Formal Dispute - Account [Account #] - Request for Itemized Review
+
+Dear Billing Department,
+
+I am writing to formally dispute the charges on my account for services rendered on ${uploadedBillData.service_date || '[Date of Service]'} at ${uploadedBillData.provider || '[Provider Name]'}.
+
+ACCOUNT DETAILS:
+- Account Number: [Your Account #]
+- Date of Service: ${uploadedBillData.service_date || '[Date]'}
+- Billed Amount: ${formatCurrency(uploadedBillData.billed_amount || 0)}
+- Procedure: ${uploadedBillData.procedure || '[Procedure]'}
+
+REASON FOR DISPUTE:
+Based on healthcare pricing databases and fair market rates in my region, the typical cost for this procedure is approximately ${formatCurrency(uploadedBillData.should_owe || 0)}. The amount billed is ${((uploadedBillData.billed_amount / uploadedBillData.should_owe - 1) * 100).toFixed(0)}% above this fair rate.
+
+I REQUEST THE FOLLOWING:
+1. A complete itemized bill with CPT/HCPCS codes for all charges
+2. An explanation of how each charge was calculated
+3. A review and adjustment of charges to reflect fair market rates
+4. Written confirmation of any billing errors found
+
+Under the No Surprises Act and state consumer protection laws, I am entitled to dispute charges that appear unreasonable. Please respond within 30 days.
 
 Sincerely,
-[Your Name]`;
+[Your Full Name]
+[Your Address]
+[Your Phone Number]
+[Your Email]`;
 
             document.getElementById("plan-phone").textContent = phoneScript;
             document.getElementById("plan-email").textContent = emailTemplate;
@@ -744,11 +796,11 @@ Sincerely,
                 .map((item) => `<li>${escapeHtml(item)}</li>`)
                 .join("");
 
-            return; // 已经加载了上传账单的计划，不需要调用后端
+            return; // Action plan loaded for uploaded bill
         }
 
 
-        // 原始 Demo Bill 流程的后端调用
+        // Default demo bill flow - fetch from backend
         const resp = await fetch(API_BASE + "/api/action_plan");
         if (!resp.ok) return;
         const data = await resp.json();
@@ -775,7 +827,7 @@ Sincerely,
 
     async function uploadBill() {
       const input = document.getElementById("bill-file");
-      const uploadArea = document.getElementById("upload-area"); // 拿到整个上传区域的卡片，便于在成功后隐藏
+      const uploadArea = document.getElementById("upload-area"); // Get upload area card for hiding after success
       const resultCard = document.getElementById("upload-result");
       if (!input || !resultCard || !uploadArea) return;
 
@@ -811,7 +863,7 @@ Sincerely,
 
         const data = await resp.json();
 
-        // 提取和计算关键数据
+        // Extract and calculate key data
         const billed = Number(data.billed_amount || data.printed_owe || 0);
         const shouldOwe = Number(data.should_owe || 0);
         const overcharge = Number(
@@ -823,9 +875,9 @@ Sincerely,
              "Potential Price Gouging: Billed amount is significantly higher than estimated fair rate.",
              "Missing Coverage: Insurance payment is $0.",
              "Immediate Action Required: Do not pay the full billed amount yet."
-        ]; // 如果后端没有返回 issue，使用一个默认的列表
+        ]; // Default issues list if backend doesn't return any
 
-        // 存储数据供后续页面使用
+        // Store data for subsequent pages
         uploadedBillData = {
             provider: data.provider || "Unknown Provider",
             service_date: data.service_date || "Unknown Date",
@@ -839,14 +891,13 @@ Sincerely,
             fileName: file.name
         };
 
-        // 成功后渲染分析结果
-        // 渲染新的“分析完成”视图
+        // Render analysis results view
         render('upload_decoded');
 
         await logEvent("upload_success", { filename: file.name });
       } catch (err) {
         console.error(err);
-        // 渲染失败结果到右侧卡片
+        // Render error message to result card
         resultCard.innerHTML = `
           <h2 class="section-title">Decoded summary</h2>
           <p class="muted small" style="color:#dc2626;">
@@ -894,7 +945,7 @@ Sincerely,
       const current = parseInt(localStorage.getItem(key) || "0", 10);
       localStorage.setItem(key, String(current + 1));
       updateWtpStats();
-      // 同时打到后端
+      // Also log to backend
       logWtp(choice);
     }
 
@@ -920,7 +971,7 @@ Sincerely,
       // Scroll to top on render
       window.scrollTo(0, 0);
 
-      // 记录页面切换事件
+      // Log page view event
       logEvent("view_" + view);
 
       if (view === "landing") {
@@ -1077,68 +1128,58 @@ Sincerely,
           `;
 
       } else if (view === "upload_pricing" && uploadedBillData) {
-        // --- 上传文件后的定价/行动计划页面 ---
+        // --- Action plan page for uploaded bills ---
         const { overcharge } = uploadedBillData;
-        const planFee = 20.00; // 虚拟费用
+        const planFee = 20.00; // Demo fee
         const savingsPct = overcharge > 0 ? (planFee / overcharge * 100).toFixed(1) : 0;
 
         main.innerHTML = `
             <button class="ghost back-link" onclick="render('upload_decoded')">${iconArrowLeft} Back</button>
             <header class="page-header">
               <div>
-                <h1>Get your Action Plan</h1>
-                <p class="muted">Everything you need to resolve this ${formatCurrency(uploadedBillData.billed_amount)} bill.</p>
+                <h1>Your Action Plan</h1>
+                <p class="muted">Everything you need to dispute your ${formatCurrency(uploadedBillData.billed_amount)} bill.</p>
               </div>
               <span class="pill pill-soft">Step 3 of 3</span>
             </header>
 
+            <div class="card" style="margin-bottom:20px;">
+              <h2 class="section-title">${iconShield} Step-by-Step Checklist</h2>
+              <ul class="checklist" id="plan-checklist">
+                <li>Loading checklist...</li>
+              </ul>
+            </div>
+
             <section class="grid two-col">
               <div class="card">
-                <h2 class="section-title">${iconShield} What's included</h2>
-                <ul class="checklist" id="plan-checklist">
-                  <li><strong>Phone Script:</strong> Exact words to say to billing agents.</li>
-                  <li><strong>Email Template:</strong> A ready-to-send message to your insurer or provider.</li>
-                  <li><strong>Checklist:</strong> Step-by-step actions to track progress.</li>
-                </ul>
-
-                <p class="small muted" style="margin-top:12px;">
-                  The example below is loaded live from the backend for this sample bill.
-                </p>
-
-                <details class="small" style="margin-top:4px;">
-                  <summary style="cursor:pointer;">View example script &amp; email</summary>
-                  <div style="margin-top:8px;">
-                    <p class="small"><strong>Phone Script</strong></p>
-                    <pre id="plan-phone"
-                         class="small"
-                         style="white-space:pre-wrap; background:#f9fafb; padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
-  Loading...
-                    </pre>
-
-                    <p class="small" style="margin-top:8px;"><strong>Email Template</strong></p>
-                    <pre id="plan-email"
-                         class="small"
-                         style="white-space:pre-wrap; background:#f9fafb; padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
-  Loading...
-                    </pre>
-                  </div>
-                </details>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                  <h2 class="section-title" style="margin:0;">${iconFile} Phone Script</h2>
+                  <button id="copy-phone-btn" class="secondary" style="padding:6px 12px; font-size:12px;" onclick="copyToClipboard('plan-phone', 'copy-phone-btn')">Copy Script</button>
+                </div>
+                <p class="small muted" style="margin-bottom:8px;">Use this when calling the billing department:</p>
+                <pre id="plan-phone" style="white-space:pre-wrap; background:#f0fdf4; padding:12px; border-radius:8px; border:1px solid #86efac; font-size:13px; line-height:1.5;">
+Loading...
+                </pre>
               </div>
 
               <div class="card">
-                <h2 class="section-title">One-time fee</h2>
-                <div style="font-size:32px; font-weight:700; color:var(--text-main); margin:12px 0;">${formatCurrency(planFee)}</div>
-                <p class="muted">Less than ${savingsPct}% of the potential savings (estimated ${formatCurrency(overcharge)}).</p>
-                <p class="small muted" style="margin-top:10px;">No subscription. Pay only when you need it.</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                  <h2 class="section-title" style="margin:0;">${iconFile} Email Template</h2>
+                  <button id="copy-email-btn" class="secondary" style="padding:6px 12px; font-size:12px;" onclick="copyToClipboard('plan-email', 'copy-email-btn')">Copy Email</button>
+                </div>
+                <p class="small muted" style="margin-bottom:8px;">Send this if the phone call doesn't resolve the issue:</p>
+                <pre id="plan-email" style="white-space:pre-wrap; background:#eff6ff; padding:12px; border-radius:8px; border:1px solid #93c5fd; font-size:13px; line-height:1.5;">
+Loading...
+                </pre>
               </div>
             </section>
 
             <div class="card" style="margin-top:20px; background: linear-gradient(to right, #eff6ff, #fff);">
-              <h2 class="section-title">Ready to continue?</h2>
-              <p>This is a research prototype. Clicking continue will take you to a <strong>simulated</strong> checkout page.</p>
+              <h2 class="section-title">Was this helpful?</h2>
+              <p>This is a research prototype. Would you pay for this level of guidance?</p>
               <div class="button-row">
-                <button class="primary" onclick="setWtp('yes'); render('checkout');">Proceed to Checkout ${iconArrowRight}</button>
-                <button class="secondary" onclick="setWtp('no'); render('upload_decoded');">No, go back</button>
+                <button class="primary" onclick="setWtp('yes'); render('checkout');">Yes, I'd pay ${formatCurrency(planFee)} ${iconArrowRight}</button>
+                <button class="secondary" onclick="setWtp('no'); render('confirmation');">No thanks</button>
               </div>
               <p id="wtp-stats" class="muted small" style="margin-top:12px;">Local Stats: No choices recorded on this device yet.</p>
             </div>
@@ -1261,59 +1302,49 @@ Sincerely,
             <button class="ghost back-link" onclick="render('decoded')">${iconArrowLeft} Back</button>
             <header class="page-header">
               <div>
-                <h1>Get your Action Plan</h1>
-                <p class="muted">Everything you need to resolve this $1,800 bill.</p>
+                <h1>Your Action Plan</h1>
+                <p class="muted">Everything you need to dispute your $1,800 bill.</p>
               </div>
               <span class="pill pill-soft">Step 3 of 3</span>
             </header>
 
+            <div class="card" style="margin-bottom:20px;">
+              <h2 class="section-title">${iconShield} Step-by-Step Checklist</h2>
+              <ul class="checklist" id="plan-checklist">
+                <li>Loading checklist...</li>
+              </ul>
+            </div>
+
             <section class="grid two-col">
               <div class="card">
-                <h2 class="section-title">${iconShield} What's included</h2>
-                <ul class="checklist" id="plan-checklist">
-                  <li><strong>Phone Script:</strong> Exact words to say to billing agents.</li>
-                  <li><strong>Email Template:</strong> A ready-to-send message to your insurer or provider.</li>
-                  <li><strong>Checklist:</strong> Step-by-step actions to track progress.</li>
-                </ul>
-
-                <p class="small muted" style="margin-top:12px;">
-                  The example below is loaded live from the backend for this sample bill.
-                </p>
-
-                <details class="small" style="margin-top:4px;">
-                  <summary style="cursor:pointer;">View example script &amp; email</summary>
-                  <div style="margin-top:8px;">
-                    <p class="small"><strong>Phone Script</strong></p>
-                    <pre id="plan-phone"
-                         class="small"
-                         style="white-space:pre-wrap; background:#f9fafb; padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
-  Loading...
-                    </pre>
-
-                    <p class="small" style="margin-top:8px;"><strong>Email Template</strong></p>
-                    <pre id="plan-email"
-                         class="small"
-                         style="white-space:pre-wrap; background:#f9fafb; padding:8px; border-radius:8px; border:1px solid #e5e7eb;">
-  Loading...
-                    </pre>
-                  </div>
-                </details>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                  <h2 class="section-title" style="margin:0;">${iconFile} Phone Script</h2>
+                  <button id="copy-phone-btn" class="secondary" style="padding:6px 12px; font-size:12px;" onclick="copyToClipboard('plan-phone', 'copy-phone-btn')">Copy Script</button>
+                </div>
+                <p class="small muted" style="margin-bottom:8px;">Use this when calling the billing department:</p>
+                <pre id="plan-phone" style="white-space:pre-wrap; background:#f0fdf4; padding:12px; border-radius:8px; border:1px solid #86efac; font-size:13px; line-height:1.5;">
+Loading...
+                </pre>
               </div>
 
               <div class="card">
-                <h2 class="section-title">One-time fee</h2>
-                <div style="font-size:32px; font-weight:700; color:var(--text-main); margin:12px 0;">$20</div>
-                <p class="muted">Less than 2% of the potential savings.</p>
-                <p class="small muted" style="margin-top:10px;">No subscription. Pay only when you need it.</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                  <h2 class="section-title" style="margin:0;">${iconFile} Email Template</h2>
+                  <button id="copy-email-btn" class="secondary" style="padding:6px 12px; font-size:12px;" onclick="copyToClipboard('plan-email', 'copy-email-btn')">Copy Email</button>
+                </div>
+                <p class="small muted" style="margin-bottom:8px;">Send this if the phone call doesn't resolve the issue:</p>
+                <pre id="plan-email" style="white-space:pre-wrap; background:#eff6ff; padding:12px; border-radius:8px; border:1px solid #93c5fd; font-size:13px; line-height:1.5;">
+Loading...
+                </pre>
               </div>
             </section>
 
             <div class="card" style="margin-top:20px; background: linear-gradient(to right, #eff6ff, #fff);">
-              <h2 class="section-title">Ready to continue?</h2>
-              <p>This is a research prototype. Clicking continue will take you to a <strong>simulated</strong> checkout page.</p>
+              <h2 class="section-title">Was this helpful?</h2>
+              <p>This is a research prototype. Would you pay for this level of guidance?</p>
               <div class="button-row">
-                <button class="primary" onclick="setWtp('yes'); render('checkout');">Proceed to Checkout ${iconArrowRight}</button>
-                <button class="secondary" onclick="setWtp('no'); render('decoded');">No, go back</button>
+                <button class="primary" onclick="setWtp('yes'); render('checkout');">Yes, I'd pay $20 ${iconArrowRight}</button>
+                <button class="secondary" onclick="setWtp('no'); render('confirmation');">No thanks</button>
               </div>
               <p id="wtp-stats" class="muted small" style="margin-top:12px;"></p>
             </div>
