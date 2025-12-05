@@ -158,8 +158,55 @@ def extract_text_from_file(path: str) -> str:
         return combined_text
 
     # 图片：用 pytesseract 做 OCR
-    if ext in [".png", ".jpg", ".jpeg", ".tiff", ".bmp"]:
-        img = Image.open(path)
+    # 支持多种图片格式，包括 HEIC/HEIF (iPhone)
+    image_extensions = [".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif", ".webp", ".heic", ".heif"]
+    if ext in image_extensions:
+        try:
+            # 尝试打开图片
+            img = Image.open(path)
+        except Exception as e:
+            # 如果打开失败，尝试用 pillow-heif 处理 HEIC/HEIF
+            if ext in [".heic", ".heif"]:
+                try:
+                    import pillow_heif
+                    heif_file = pillow_heif.read_heif(path)
+                    img = Image.frombytes(
+                        heif_file.mode,
+                        heif_file.size,
+                        heif_file.data,
+                        "raw"
+                    )
+                except ImportError:
+                    print(f"pillow-heif not installed, cannot process HEIC/HEIF")
+                    return ""
+                except Exception as heif_err:
+                    print(f"HEIC processing failed: {heif_err}")
+                    return ""
+            else:
+                # 尝试忽略扩展名，让 PIL 自动检测格式
+                try:
+                    with open(path, 'rb') as f:
+                        img = Image.open(f)
+                        img.load()  # 强制加载
+                except Exception as e2:
+                    print(f"Image open failed: {e} / {e2}")
+                    return ""
+
+        # 确保图片是 RGB 模式 (OCR 需要)
+        try:
+            if img.mode in ('RGBA', 'LA', 'P'):
+                # 有透明通道，转换为白底 RGB
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                img = background
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+        except Exception as convert_err:
+            print(f"Image conversion failed: {convert_err}")
+            # 继续尝试 OCR
+
         text = pytesseract.image_to_string(img)
         return text
 

@@ -2,5 +2,6 @@ flask
 flask-cors
 pdfplumber
 pillow
+pillow-heif
 pytesseract
 gunicorn
