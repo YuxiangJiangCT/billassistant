@@ -447,23 +447,36 @@ def upload_bill():
     """
     接收 PDF 或图片，做 OCR/文本抽取 + 粗糙解析，返回 decoded 结果。
     """
-    if "file" not in request.files:
-        return jsonify({"error": "no file field"}), 400
+    try:
+        if "file" not in request.files:
+            return jsonify({"error": "no file field"}), 400
 
-    file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "empty filename"}), 400
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "empty filename"}), 400
 
-    filename = file.filename
-    save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    file.save(save_path)
+        filename = file.filename
+        save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        file.save(save_path)
 
-    text = extract_text_from_file(save_path)
-    if not text.strip():
-        return jsonify({"error": "could not extract text from file"}), 400
+        print(f"[upload_bill] Saved file to: {save_path}")
 
-    decoded = parse_bill_text(text)
-    return jsonify(decoded)
+        text = extract_text_from_file(save_path)
+        print(f"[upload_bill] Extracted text length: {len(text) if text else 0}")
+
+        if not text.strip():
+            return jsonify({"error": "could not extract text from file"}), 400
+
+        decoded = parse_bill_text(text)
+        print(f"[upload_bill] Parsed result: billed={decoded.get('billed_amount')}, owe={decoded.get('printed_owe')}")
+        return jsonify(decoded)
+
+    except Exception as e:
+        import traceback
+        error_msg = f"Error processing file: {str(e)}"
+        print(f"[upload_bill] ERROR: {error_msg}")
+        print(traceback.format_exc())
+        return jsonify({"error": error_msg}), 500
 
 
 if __name__ == "__main__":
