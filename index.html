@@ -650,6 +650,8 @@
       }
     }
   </style>
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -657,6 +659,75 @@
   </div>
 
   <script>
+    // --- Supabase Configuration ---
+    const SUPABASE_URL = 'https://hmmhfmwnhwmmwngevtoa.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtbWhmbXduaHdtbXduZ2V2dG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5NDg0NDYsImV4cCI6MjA4MDUyNDQ0Nn0.ZdDXbWq7-RGkxR9kaKk5fLmhWOYvWgPd7QCePiF6syg';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUser = null;  // Current logged-in user
+
+    // Check authentication status
+    async function checkAuth() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      currentUser = session?.user || null;
+      return currentUser;
+    }
+
+    // Listen for auth state changes
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      currentUser = session?.user || null;
+      if (event === 'SIGNED_IN') {
+        render(currentView);  // Refresh current page
+      }
+    });
+
+    // Send magic link for passwordless login
+    async function sendMagicLink(email) {
+      const { error } = await supabaseClient.auth.signInWithOtp({
+        email: email,
+        options: {
+          emailRedirectTo: window.location.origin
+        }
+      });
+
+      if (error) {
+        alert('Error sending login link: ' + error.message);
+        return false;
+      }
+      return true;
+    }
+
+    // Sign out
+    async function signOut() {
+      await supabaseClient.auth.signOut();
+      currentUser = null;
+      render('landing');
+    }
+
+    // Handle login form submission
+    async function handleLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      if (!email) {
+        alert('Please enter your email');
+        return;
+      }
+
+      const statusEl = document.getElementById('login-status');
+      statusEl.innerHTML = '<p class="muted">Sending magic link...</p>';
+
+      const success = await sendMagicLink(email);
+      if (success) {
+        logEvent('magic_link_sent', { email: email });
+        statusEl.innerHTML = `
+          <div class="card" style="background:#ecfdf5; border-color:#6ee7b7;">
+            <p style="color:#065f46; margin:0;">
+              Check your email! Click the link to sign in.
+            </p>
+          </div>
+        `;
+      }
+    }
+
     let currentView = "landing";
     let uploadedBillData = null; // Store parsed bill data for later use
 
@@ -1051,7 +1122,16 @@ Sincerely,
       logEvent("view_" + view);
 
       if (view === "landing") {
+        const userStatusHtml = currentUser ? `
+          <div style="position:absolute; top:0; right:0; font-size:13px; color:var(--text-muted);">
+            ${escapeHtml(currentUser.email)} · <a href="#" onclick="signOut(); return false;" style="color:var(--accent);">Sign out</a>
+          </div>
+        ` : '';
+
         main.innerHTML = `
+            <div style="position:relative;">
+              ${userStatusHtml}
+            </div>
             <header class="page-header">
               <div class="page-header-content">
                 <div class="pill-row">
@@ -1076,10 +1156,15 @@ Sincerely,
                   <li>Generate an action plan to fix it.</li>
                 </ul>
                 <div class="button-row">
-                  <button class="primary" onclick="render('sample')">Try the demo ${iconArrowRight}</button>
-                  <button class="secondary" onclick="render('upload')">Upload your bill (demo)</button>
+                  ${currentUser ? `
+                    <button class="primary" onclick="render('upload')">Upload your bill ${iconArrowRight}</button>
+                    <button class="secondary" onclick="render('sample')">Try the demo</button>
+                  ` : `
+                    <button class="primary" onclick="render('sample')">Try the demo ${iconArrowRight}</button>
+                    <button class="secondary" onclick="render('login')">Sign in</button>
+                  `}
                 </div>
-                <p class="muted small" style="margin-top:16px;">Built for research. No personal data is stored.</p>
+                <p class="muted small" style="margin-top:16px;">${currentUser ? 'Your results will be saved to your account.' : 'Built for research. Sign in to save your results.'}</p>
               </div>
 
               <div class="card card-illustration">
@@ -1569,11 +1654,37 @@ Loading...
               <button class="ghost" style="margin-top:24px;" onclick="render('landing');">Start Over</button>
             </div>
           `;
+      } else if (view === "login") {
+        main.innerHTML = `
+            <button class="ghost back-link" onclick="render('landing')">${iconArrowLeft} Back</button>
+            <header class="page-header" style="text-align:center; display:block;">
+              <h1>Sign in to save your results</h1>
+              <p class="muted">We'll send you a magic link - no password needed.</p>
+            </header>
+
+            <div class="card" style="max-width:400px; margin:0 auto;">
+              <label style="display:block; margin-bottom:8px; font-weight:500;">Email address</label>
+              <input type="email" id="login-email" placeholder="you@example.com"
+                     style="width:100%; padding:12px; border:1px solid #d0d7e2; border-radius:10px; font-size:15px; background:#f9fafb;">
+
+              <button class="primary full-width" style="margin-top:16px;" onclick="handleLogin()">
+                Send magic link
+              </button>
+
+              <p class="small muted center" style="margin-top:16px;">
+                Or <a href="#" onclick="render('upload'); return false;" style="color:var(--accent);">continue as guest</a>
+              </p>
+            </div>
+
+            <div id="login-status" style="text-align:center; margin-top:16px;"></div>
+          `;
       }
     }
 
-    document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", async function () {
       initWtpStats();
+      // Check auth status before rendering
+      await checkAuth();
       render("landing");
     });
   </script>
