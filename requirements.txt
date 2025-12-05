@@ -4,4 +4,5 @@ pdfplumber
 pillow
 pillow-heif
 pytesseract
+numpy
 gunicorn

@@ -7,6 +7,7 @@ from flask import Flask, request, jsonify, send_from_directory
 import pdfplumber
 from PIL import Image
 import pytesseract
+import numpy as np
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -207,7 +208,9 @@ def extract_text_from_file(path: str) -> str:
             print(f"Image conversion failed: {convert_err}")
             # 继续尝试 OCR
 
-        text = pytesseract.image_to_string(img)
+        # Convert PIL Image to numpy array for pytesseract compatibility
+        img_array = np.array(img)
+        text = pytesseract.image_to_string(img_array)
         return text
 
     # 其他类型暂时返回空
